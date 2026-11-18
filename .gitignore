@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+!.env.example
+dist/
+coverage/
+
+# Authentication cookies
+admin-cookies.txt
+customer-cookies.txt
+customer2-cookies.txt
+salonbook-cookies.txt
