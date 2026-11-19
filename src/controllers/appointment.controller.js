@@ -48,7 +48,6 @@ export const createAppointment = async (req, res) => {
       });
     }
 
-    // Generate a unique key for each service, date and time slot.
     const normalizedTimeSlot = timeSlot
       .trim()
       .replace(/\s+/g, " ")
@@ -150,10 +149,10 @@ export const getAppointmentById = async (req, res) => {
       });
     }
 
-    if (
-      req.user.role !== "admin" &&
-      appointment.customerId !== req.user.id
-    ) {
+    const isOwner =
+      appointment.customerId.toString() === req.user.id.toString();
+
+    if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({
         success: false,
         message: "You are not allowed to view this appointment.",
@@ -233,7 +232,7 @@ export const updateAppointmentStatus = async (req, res) => {
   }
 };
 
-// 6. Cancel Own Appointment (Customer)
+// 6. Cancel Own Pending Appointment (Customer)
 export const cancelAppointment = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id);
@@ -245,17 +244,20 @@ export const cancelAppointment = async (req, res) => {
       });
     }
 
-    if (appointment.customerId !== req.user.id) {
+    const isOwner =
+      appointment.customerId.toString() === req.user.id.toString();
+
+    if (!isOwner) {
       return res.status(403).json({
         success: false,
         message: "You can only cancel your own appointments.",
       });
     }
 
-    if (appointment.status === "cancelled") {
+    if (appointment.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: "Appointment is already cancelled.",
+        message: "Only pending appointments can be cancelled.",
       });
     }
 
