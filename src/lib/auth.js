@@ -17,6 +17,19 @@ export const connectAuthDB = async () => {
   console.log("Better Auth MongoDB connected successfully!");
 };
 
+// Google OAuth is only enabled when both credentials are configured.
+const socialProviders = {};
+
+if (
+  process.env.GOOGLE_CLIENT_ID &&
+  process.env.GOOGLE_CLIENT_SECRET
+) {
+  socialProviders.google = {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  };
+}
+
 // Better Auth configuration
 export const auth = betterAuth({
   database: mongodbAdapter(authDatabase, {
@@ -31,7 +44,10 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
+    minPasswordLength: 6,
   },
+
+  socialProviders,
 
     user: {
     additionalFields: {
