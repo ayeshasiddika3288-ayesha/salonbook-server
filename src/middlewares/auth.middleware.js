@@ -1,5 +1,6 @@
 
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import User from "../models/user.model.js";
 
 const baseURL = process.env.BETTER_AUTH_URL;
 
@@ -26,18 +27,32 @@ export const verifyToken = async (req, res, next) => {
       audience: baseURL,
     });
 
-    if (!payload.sub || !payload.role) {
+    if (!payload.sub) {
       return res.status(401).json({
         success: false,
         message: "Invalid token payload.",
       });
     }
 
+    // Always read role and blocked status from the database so that
+    // blocking a user takes effect immediately, even with an old token.
+    const user = await User.findById(payload.sub)
+      .select("name email role isBlocked")
+      .lean();
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Account no longer exists.",
+      });
+    }
+
     req.user = {
       id: payload.sub,
-      email: payload.email,
-      role: payload.role,
-      isBlocked: payload.isBlocked,
+      name: user.name,
+      email: user.email,
+      role: user.role || "customer",
+      isBlocked: Boolean(user.isBlocked),
     };
 
     if (req.user.isBlocked === true) {
