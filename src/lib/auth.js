@@ -7,31 +7,46 @@ import { MongoClient } from "mongodb";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { jwt } from "better-auth/plugins";
 
-// MongoDB connection for Better Auth
-const mongoClient = new MongoClient(process.env.MONGODB_URI);
+if (!process.env.MONGODB_URI) {
+  throw new Error("MONGODB_URI is missing.");
+}
 
+const cached = globalThis.betterAuthMongo || {
+  client: new MongoClient(process.env.MONGODB_URI),
+  promise: null,
+};
+
+globalThis.betterAuthMongo = cached;
+
+const mongoClient = cached.client;
 const authDatabase = mongoClient.db("salonbook");
 
-// Connect Better Auth to MongoDB
 export const connectAuthDB = async () => {
-  await mongoClient.connect();
+  if (!cached.promise) {
+    cached.promise = mongoClient.connect().catch((error) => {
+      cached.promise = null;
+      throw error;
+    });
+  }
+
+  await cached.promise;
   console.log("Better Auth MongoDB connected successfully!");
 };
 
-// Google OAuth is only enabled when both credentials are configured.
+const trustedOrigins = (process.env.CLIENT_URL || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const socialProviders = {};
 
-if (
-  process.env.GOOGLE_CLIENT_ID &&
-  process.env.GOOGLE_CLIENT_SECRET
-) {
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   socialProviders.google = {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   };
 }
 
-// Better Auth configuration
 export const auth = betterAuth({
   database: mongodbAdapter(authDatabase, {
     client: mongoClient,
@@ -39,9 +54,7 @@ export const auth = betterAuth({
 
   baseURL: process.env.BETTER_AUTH_URL,
 
-  trustedOrigins: [
-    process.env.CLIENT_URL,
-  ],
+  trustedOrigins,
 
   emailAndPassword: {
     enabled: true,
@@ -50,7 +63,7 @@ export const auth = betterAuth({
 
   socialProviders,
 
-    user: {
+  user: {
     additionalFields: {
       role: {
         type: "string",
@@ -58,14 +71,12 @@ export const auth = betterAuth({
         defaultValue: "customer",
         input: false,
       },
-
       isBlocked: {
         type: "boolean",
         required: false,
         defaultValue: false,
         input: false,
       },
-
       phone: {
         type: "string",
         required: false,
@@ -109,7 +120,6 @@ export const auth = betterAuth({
     }),
   },
 
-  
   plugins: [
     jwt({
       jwt: {
@@ -122,5 +132,4 @@ export const auth = betterAuth({
       },
     }),
   ],
-
 });

@@ -12,6 +12,9 @@ import adminRoutes from "./routes/admin.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import { handleStripeWebhook } from "./controllers/payment.controller.js";
 
+import connectDB from "./config/db.js";
+import { connectAuthDB } from "./lib/auth.js"; 
+
 const app = express();
 
 const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:3000")
@@ -26,6 +29,20 @@ app.use(
     credentials: true,
   })
 );
+
+// Connect databases before handling API requests
+app.use(async (req, res, next) => {
+  try {
+    await Promise.all([
+      connectDB(),
+      connectAuthDB(),
+    ]);
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Better Auth route
 app.all("/api/auth/*splat", toNodeHandler(auth));
