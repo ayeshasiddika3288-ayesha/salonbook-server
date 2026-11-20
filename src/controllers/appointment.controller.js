@@ -98,7 +98,7 @@ export const getMyAppointments = async (req, res) => {
     const appointments = await Appointment.find({
       customerId: req.user.id,
     })
-      .populate("serviceId")
+      .populate("serviceId", "serviceName category description price duration image")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -119,7 +119,8 @@ export const getMyAppointments = async (req, res) => {
 export const getAllAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find()
-      .populate("serviceId")
+      .populate("serviceId", "serviceName category description price duration image")
+      .populate("customerId", "name email image phone")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -140,7 +141,8 @@ export const getAllAppointments = async (req, res) => {
 export const getAppointmentById = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
-      .populate("serviceId");
+      .populate("serviceId", "serviceName category description price duration image")
+      .populate("customerId", "name email image phone");
 
     if (!appointment) {
       return res.status(404).json({
@@ -149,8 +151,9 @@ export const getAppointmentById = async (req, res) => {
       });
     }
 
+    const ownerId = appointment.customerId?._id || appointment.customerId;
     const isOwner =
-      appointment.customerId.toString() === req.user.id.toString();
+      ownerId?.toString() === req.user.id.toString();
 
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({
@@ -180,7 +183,7 @@ export const getAppointmentById = async (req, res) => {
 export const updateAppointmentStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const allowedStatuses = ["pending", "confirmed", "cancelled"];
+    const allowedStatuses = ["confirmed", "cancelled"];
 
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
@@ -198,6 +201,22 @@ export const updateAppointmentStatus = async (req, res) => {
       });
     }
 
+    // Enforce a safe state machine:
+    // pending -> confirmed, pending/confirmed -> cancelled.
+    if (status === "confirmed" && appointment.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "Only pending appointments can be confirmed.",
+      });
+    }
+
+    if (status === "cancelled" && appointment.status === "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "This appointment is already cancelled.",
+      });
+    }
+
     appointment.status = status;
 
     if (status === "cancelled") {
@@ -205,7 +224,8 @@ export const updateAppointmentStatus = async (req, res) => {
     }
 
     await appointment.save();
-    await appointment.populate("serviceId");
+    await appointment.populate("serviceId", "serviceName category description price duration image");
+    await appointment.populate("customerId", "name email image phone");
 
     return res.status(200).json({
       success: true,

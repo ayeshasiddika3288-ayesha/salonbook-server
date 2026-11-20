@@ -24,7 +24,7 @@ export const getDashboardStats = async (req, res) => {
       Appointment.countDocuments({ status: "confirmed" }),
       Appointment.countDocuments({ status: "cancelled" }),
       Transaction.aggregate([
-        { $match: { status: "completed" } },
+        { $match: { status: { $in: ["paid", "completed"] } } },
         {
           $group: {
             _id: null,

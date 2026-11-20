@@ -4,18 +4,23 @@ REST API for **SalonBook**, a role-based salon appointment booking platform. Cus
 
 ## Important Features
 
-- Better Auth authentication (email/password + JWT) with Google OAuth support
+- Better Auth authentication (email/password + JWT) with optional Google OAuth support
+- Server-enforced password rule: at least 6 characters with one uppercase and one lowercase letter (sign up, change password, reset password)
+- `phone` profile field stored in MongoDB and returned with the user/session
 - JWT verification middleware with database-backed role and blocked-status checks on every protected API
 - Role-based authorization (`admin` / `customer`) enforced on the server
+- Blocked customers receive `403` immediately, even with an unexpired token
 - Public service browsing with active-only filtering
 - Admin service CRUD + activate/deactivate
 - Appointment requests with duplicate-slot and past-date protection
-- Customer-only cancellation of their own pending appointments
-- Admin appointment confirmation/cancellation
+- Appointment state machine: `pending → confirmed`, `pending`/`confirmed → cancelled`
+  - Customers may cancel only their own `pending` appointments
+  - Admins may confirm only `pending` appointments; repeated confirms return `400`
+- Appointments populate the service and customer (`name`, `email`, `image`, `phone`) for both dashboards
 - Customer management: list, view, block, unblock
-- Admin dashboard statistics API
+- Admin dashboard statistics API (customer/service/appointment counts + successful payments)
 - Stripe Checkout session creation and verified webhook handling
-- Payment status is updated **only** after a verified Stripe webhook event
+- Transaction statuses are `paid` / `failed`; a transaction starts as `failed` and flips to `paid` only after the verified `checkout.session.completed` webhook
 - Server-side image upload proxy to ImgBB (API key never exposed to the browser)
 - Centralized JSON error handling and API 404 responses
 
@@ -94,6 +99,15 @@ db.user.updateOne(
 
 Admin credentials for evaluation are provided in the assignment submission.
 
+## Demo Accounts
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@salonbook.com` | `AdminSalon1` |
+| Customer | `customer.test@example.com` | `Customer123` |
+
+> Public registration always creates a `customer`. Change the demo admin password before sharing a public deployment.
+
 ## Required Environment Variables (names only)
 
 | Variable | Purpose |
@@ -153,6 +167,8 @@ Subscribe to at least:
 
 Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
 
+The webhook verifies the signature, matches the stored transaction by session ID, appointment and customer, checks the amount and currency, then marks both the appointment (`paymentStatus: "paid"`) and the transaction (`status: "paid"`). Duplicate deliveries are safe because the appointment update is conditional.
+
 ## Live Website
 
 - Client: _add your deployed client URL here_
@@ -165,8 +181,24 @@ Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
 
 ## Deployment Notes
 
-- Set `CLIENT_URL` to the deployed client URL (comma-separate multiple origins).
-- Set `BETTER_AUTH_URL` to the deployed server URL.
-- Configure the Stripe webhook for the production server URL.
-- Make sure `NODE_ENV=production` is set on the host.
-- `.env` is git-ignored and must be configured in the hosting dashboard.
+Vercel can host the Next.js client only. Deploy this Express API to a Node host such as **Render**, **Railway**, or **Fly.io**:
+
+| Setting | Value |
+| --- | --- |
+| Build command | `npm install` |
+| Start command | `npm start` |
+| Runtime | Node.js 20+ |
+
+Then configure the environment variables:
+
+- `CLIENT_URL` → the deployed client URL (comma-separate preview/alternate domains)
+- `BETTER_AUTH_URL` → the public URL of this API (must match exactly, including `https://`)
+- `NODE_ENV=production`
+- `MONGODB_URI`, `BETTER_AUTH_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `IMGBB_API_KEY`
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` only if Google sign-in is required
+
+Finally:
+
+- Register the production Stripe webhook for `https://<server-domain>/api/payments/webhook`.
+- Add `https://<server-domain>/api/auth/callback/google` to the Google OAuth authorized redirect URIs.
+- Keep `.env` in the host dashboard — it is git-ignored and must never be committed.

@@ -57,7 +57,6 @@ export const createCheckoutSession = async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
@@ -86,7 +85,7 @@ export const createCheckoutSession = async (req, res) => {
       amount: appointment.servicePrice,
       currency: CURRENCY,
       stripeSessionId: session.id,
-      status: "pending",
+      status: "failed",
     });
 
     return res.status(201).json({
@@ -148,6 +147,7 @@ export const getAllTransactions = async (req, res) => {
           select: "serviceName",
         },
       })
+      .populate("customerId", "name email image phone")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -243,7 +243,7 @@ export const handleStripeWebhook = async (req, res) => {
       if (appointment) {
         await Transaction.updateOne(
           { _id: transaction._id },
-          { $set: { status: "completed" } }
+          { $set: { status: "paid" } }
         );
       } else {
         const alreadyPaid = await Appointment.findOne({
@@ -255,7 +255,7 @@ export const handleStripeWebhook = async (req, res) => {
         if (alreadyPaid) {
           await Transaction.updateOne(
             { _id: transaction._id },
-            { $set: { status: "completed" } }
+            { $set: { status: "paid" } }
           );
         } else {
           console.error(
@@ -269,7 +269,7 @@ export const handleStripeWebhook = async (req, res) => {
       const session = event.data.object;
 
       await Transaction.updateOne(
-        { stripeSessionId: session.id, status: "pending" },
+        { stripeSessionId: session.id, status: "failed" },
         { $set: { status: "failed" } }
       );
     }

@@ -10,7 +10,8 @@ const transactionSchema = new mongoose.Schema(
     },
 
     customerId: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
       required: [true, "Customer ID is required"],
     },
 
@@ -35,8 +36,8 @@ const transactionSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "completed", "failed", "refunded"],
-      default: "pending",
+      enum: ["paid", "failed"],
+      default: "failed",
     },
   },
   {

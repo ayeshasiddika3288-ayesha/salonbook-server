@@ -7,6 +7,7 @@ const sanitizeUser = (user) => ({
   image: user.image || "",
   role: user.role || "customer",
   isBlocked: Boolean(user.isBlocked),
+  phone: user.phone || "",
   createdAt: user.createdAt || null,
   updatedAt: user.updatedAt || null,
 });

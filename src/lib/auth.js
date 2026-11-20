@@ -2,6 +2,7 @@
 import "dotenv/config";
 
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { MongoClient } from "mongodb";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { jwt } from "better-auth/plugins";
@@ -64,7 +65,48 @@ export const auth = betterAuth({
         defaultValue: false,
         input: false,
       },
+
+      phone: {
+        type: "string",
+        required: false,
+        defaultValue: "",
+        input: true,
+      },
     },
+  },
+
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      const passwordPaths = [
+        "/sign-up/email",
+        "/change-password",
+        "/reset-password",
+      ];
+
+      if (!passwordPaths.includes(ctx.path)) {
+        return;
+      }
+
+      const body = ctx.body || {};
+      const password = body.password ?? body.newPassword;
+
+      if (typeof password !== "string") {
+        return;
+      }
+
+      if (password.length < 6) {
+        throw new APIError("BAD_REQUEST", {
+          message: "Password must be at least 6 characters long.",
+        });
+      }
+
+      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password)) {
+        throw new APIError("BAD_REQUEST", {
+          message:
+            "Password must include at least one uppercase and one lowercase letter.",
+        });
+      }
+    }),
   },
 
   
