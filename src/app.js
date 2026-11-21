@@ -11,16 +11,14 @@ import userRoutes from "./routes/user.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import { handleStripeWebhook } from "./controllers/payment.controller.js";
+import { getAllowedOrigins } from "./lib/origins.js";
 
 import connectDB from "./config/db.js";
 import { connectAuthDB } from "./lib/auth.js"; 
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:3000")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const allowedOrigins = getAllowedOrigins();
 
 // CORS configuration
 app.use(

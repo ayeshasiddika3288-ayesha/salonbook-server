@@ -2,11 +2,45 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import User from "../models/user.model.js";
 
-const baseURL = process.env.BETTER_AUTH_URL;
+const configuredBaseURL = (process.env.BETTER_AUTH_URL || "").replace(/\/+$/, "");
 
-const JWKS = createRemoteJWKSet(
-  new URL(`${baseURL}/api/auth/jwks`)
-);
+const jwksSets = new Map();
+
+const getRequestOrigin = (req) => {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol =
+    (typeof forwardedProto === "string" && forwardedProto.split(",")[0].trim()) ||
+    req.protocol ||
+    "https";
+  const host = req.get("host");
+
+  if (!host) return configuredBaseURL;
+
+  return `${protocol}://${host}`;
+};
+
+// Better Auth signs the JWT with the configured BETTER_AUTH_URL as iss/aud.
+// The same server always exposes the matching JWKS, so we fetch keys from the
+// origin that served this request (works locally and on serverless hosts).
+const getJWKS = (req) => {
+  const origin = getRequestOrigin(req);
+
+  if (!origin) {
+    throw new Error("Unable to resolve the API origin for JWKS verification.");
+  }
+
+  if (!jwksSets.has(origin)) {
+    jwksSets.set(
+      origin,
+      createRemoteJWKSet(new URL(`${origin}/api/auth/jwks`))
+    );
+  }
+
+  return jwksSets.get(origin);
+};
+
+const getAllowedIssuers = (req) =>
+  [configuredBaseURL, getRequestOrigin(req)].filter(Boolean);
 
 // Verify JWT token
 export const verifyToken = async (req, res, next) => {
@@ -22,9 +56,9 @@ export const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    const { payload } = await jwtVerify(token, JWKS, {
-      issuer: baseURL,
-      audience: baseURL,
+    const { payload } = await jwtVerify(token, getJWKS(req), {
+      issuer: getAllowedIssuers(req),
+      audience: getAllowedIssuers(req),
     });
 
     if (!payload.sub) {

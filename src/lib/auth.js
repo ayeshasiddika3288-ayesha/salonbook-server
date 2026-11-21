@@ -6,6 +6,7 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { MongoClient } from "mongodb";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { jwt } from "better-auth/plugins";
+import { getAllowedOrigins } from "./origins.js";
 
 if (!process.env.MONGODB_URI) {
   throw new Error("MONGODB_URI is missing.");
@@ -33,10 +34,9 @@ export const connectAuthDB = async () => {
   console.log("Better Auth MongoDB connected successfully!");
 };
 
-const trustedOrigins = (process.env.CLIENT_URL || "http://localhost:3000")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const trustedOrigins = getAllowedOrigins();
+
+const isProduction = process.env.NODE_ENV === "production";
 
 const socialProviders = {};
 
@@ -55,6 +55,15 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
 
   trustedOrigins,
+
+  // The Vercel client and the Vercel API live on different sub-domains, so the
+  // session cookie is a third-party cookie and must be SameSite=None; Secure.
+  advanced: {
+    useSecureCookies: isProduction,
+    defaultCookieAttributes: isProduction
+      ? { sameSite: "none", secure: true, httpOnly: true }
+      : { sameSite: "lax", secure: false, httpOnly: true },
+  },
 
   emailAndPassword: {
     enabled: true,
