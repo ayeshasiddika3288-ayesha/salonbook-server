@@ -171,8 +171,9 @@ The webhook verifies the signature, matches the stored transaction by session ID
 
 ## Live Website
 
-- Client: _add your deployed client URL here_
-- Server: _add your deployed server URL here_
+- Client: https://salonbook-client-six.vercel.app
+- Server: https://salonbook-server-gules.vercel.app
+- Health check: https://salonbook-server-gules.vercel.app/api/health
 
 ## Repositories
 
@@ -181,19 +182,23 @@ The webhook verifies the signature, matches the stored transaction by session ID
 
 ## Deployment Notes
 
-Vercel can host the Next.js client only. Deploy this Express API to a Node host such as **Render**, **Railway**, or **Fly.io**:
+This API is deployed on Vercel as its own project using the **Express** backend preset: `src/app.js` exports the Express app and both database clients are cached on `globalThis`, so serverless invocations reuse the connections.
+
+Vercel project settings:
 
 | Setting | Value |
 | --- | --- |
+| Framework preset | Express |
+| Root directory | repository root |
 | Build command | `npm install` |
-| Start command | `npm start` |
-| Runtime | Node.js 20+ |
+| Runtime | Node.js 20+ / 22.x |
+
+Any Node host (Render, Railway, Fly.io) also works with `npm start`.
 
 Then configure the environment variables:
 
-- `CLIENT_URL` → the deployed client URL (comma-separate preview/alternate domains)
+- `CLIENT_URL` → the deployed client URL (comma-separate preview/alternate domains; whitespace and trailing slashes are trimmed)
 - `BETTER_AUTH_URL` → the public URL of this API (must match exactly, including `https://`)
-- `NODE_ENV=production`
 - `MONGODB_URI`, `BETTER_AUTH_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `IMGBB_API_KEY`
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` only if Google sign-in is required
 
@@ -202,3 +207,5 @@ Finally:
 - Register the production Stripe webhook for `https://<server-domain>/api/payments/webhook`.
 - Add `https://<server-domain>/api/auth/callback/google` to the Google OAuth authorized redirect URIs.
 - Keep `.env` in the host dashboard — it is git-ignored and must never be committed.
+
+> Because the client and API are on different `vercel.app` sub-domains, the session cookie is cross-site: it is issued as `__Secure-better-auth.session_token; SameSite=None; Secure`. Chrome, Edge and Firefox accept it; Safari's third-party cookie blocking can prevent sign-in on the live demo.
