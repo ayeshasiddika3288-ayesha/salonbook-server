@@ -3,7 +3,24 @@ import Appointment from "../models/appointment.model.js";
 import Transaction from "../models/transaction.model.js";
 import getStripe from "../lib/stripe.js";
 
+import { getAllowedOrigins } from "../lib/origins.js";
+
 const CURRENCY = "bdt";
+
+const isLocalOrigin = (origin) =>
+  origin.includes("localhost") || origin.includes("127.0.0.1");
+
+// Stripe must send the customer back to the deployed client, so prefer the
+// configured public origin in production and localhost during local dev.
+const getClientUrl = () => {
+  const origins = getAllowedOrigins();
+  const preferred =
+    process.env.NODE_ENV === "production"
+      ? origins.find((origin) => !isLocalOrigin(origin))
+      : origins.find(isLocalOrigin);
+
+  return preferred || origins[0] || "http://localhost:3000";
+};
 
 export const createCheckoutSession = async (req, res) => {
   try {
@@ -53,7 +70,7 @@ export const createCheckoutSession = async (req, res) => {
 
     const stripe = getStripe();
 
-    const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
+    const clientUrl = getClientUrl();
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
